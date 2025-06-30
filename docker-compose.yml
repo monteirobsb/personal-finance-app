@@ -7,6 +7,11 @@ services:
       - "8080:8080"
     volumes:
       - ./backend:/app
+      # O Dockerfile já copia o código, então a montagem de volume aqui é
+      # mais para desenvolvimento live-reload. Para produção, poderia ser removido
+      # se a imagem for construída com o código final.
+    env_file:
+      - ./backend/.env # Carrega variáveis de ambiente do .env do backend
 
   frontend:
     build: ./frontend
