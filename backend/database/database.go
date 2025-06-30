@@ -31,7 +31,13 @@ func ConnectDB() {
 	fmt.Println("Database connection successfully opened")
 
 	// Migrar o schema
-	err = DB.AutoMigrate(&models.User{}, &models.AuthCode{}, &models.Income{}, &models.FixedExpense{})
+	err = DB.AutoMigrate(
+		&models.User{},
+		&models.AuthCode{},
+		&models.Income{},
+		&models.FixedExpense{},
+		&models.VariableExpense{}, // Adiciona VariableExpense à migração
+	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}

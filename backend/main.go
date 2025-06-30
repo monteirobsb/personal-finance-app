@@ -60,6 +60,17 @@ func main() {
 		onboardingRoutes.POST("/fixed-expenses", handlers.SaveFixedExpensesHandler)
 	}
 
+	// Rotas de Despesas Variáveis (protegidas por JWT)
+	expenseRoutes := router.Group("/expenses")
+	expenseRoutes.Use(middleware.AuthMiddleware())
+	{
+		expenseRoutes.POST("", handlers.PostExpenseHandler)       // POST /expenses
+		expenseRoutes.DELETE("/:id", handlers.DeleteExpenseHandler) // DELETE /expenses/{id}
+	}
+
+	// Rota de Saldo e Projeção (protegida por JWT)
+	router.GET("/balance", middleware.AuthMiddleware(), handlers.GetBalanceHandler)
+
 	// Iniciar o servidor
 	port := os.Getenv("PORT")
 	if port == "" {

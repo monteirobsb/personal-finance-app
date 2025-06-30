@@ -14,8 +14,9 @@ type User struct {
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 
-	Income        Income         `gorm:"foreignKey:UserID"`
-	FixedExpenses []FixedExpense `gorm:"foreignKey:UserID"`
+	Income           Income            `gorm:"foreignKey:UserID"`
+	FixedExpenses    []FixedExpense    `gorm:"foreignKey:UserID"`
+	VariableExpenses []VariableExpense `gorm:"foreignKey:UserID"` // Adiciona o relacionamento
 }
 
 // AuthCode representa um código de autenticação enviado ao usuário
@@ -44,4 +45,17 @@ type FixedExpense struct {
 	Value     float64 `gorm:"not null"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// VariableExpense representa uma despesa variável do usuário
+type VariableExpense struct {
+	ID        uint      `gorm:"primaryKey"`
+	UserID    uint      `gorm:"index;not null"` // Chave estrangeira para User
+	Value     float64   `gorm:"not null"`
+	Category  string    `gorm:"not null;index"` // Nome da categoria (simplificado por enquanto)
+	Description string
+	Date      time.Time `gorm:"not null;index"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	User      User // Relacionamento (opcional, mas útil para GORM)
 }
