@@ -14,13 +14,14 @@ services:
       - ./backend/.env # Carrega variáveis de ambiente do .env do backend
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend # Caminho para o diretório do frontend
+      dockerfile: Dockerfile # Especifica o nome do Dockerfile
     ports:
-      - "8081:8081" # Suposing Vue.js app runs on 8081, change if needed
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules # Avoids overriding node_modules by local volume
-
+      - "8081:80" # Mapeia a porta 80 do Nginx (dentro do container) para a 8081 no host
+    # Volumes são removidos para este setup com Nginx servindo um build estático.
+    # A imagem Docker já contém os arquivos construídos.
+    # Para desenvolvimento com hot-reload, a abordagem seria diferente.
   db:
     image: postgres:latest
     ports:
