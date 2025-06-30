@@ -1,29 +1,39 @@
 <template>
   <div class="onboarding-income-container">
     <div class="onboarding-card">
-      <h1>Qual é a sua renda mensal?</h1>
-      <p>Saber sua renda nos ajuda a entender sua saúde financeira inicial.</p>
-      <div class="input-group">
-        <span class="currency-symbol">R$</span>
-        <input
-          type="number"
-          v-model.number="monthlyIncome"
-          placeholder="Ex: 3500.00"
-          min="0"
-          step="0.01"
+      <header class="onboarding-header">
+        <h1>Qual é a sua renda mensal?</h1>
+      </header>
+      <div class="onboarding-body">
+        <p class="support-text">Informe o valor líquido que você recebe por mês. Isso será a base para todo o seu controle.</p>
+        <div class="input-group large-input-group">
+          <span class="currency-symbol">R$</span>
+          <input
+            type="number"
+            v-model.number="monthlyIncome"
+            placeholder="0,00"
+            min="0"
+            step="0.01"
+            class="large-centered-input"
           @input="validateInput"
         />
       </div>
       <button @click="nextStep" :disabled="isNextButtonDisabled" class="next-button">
         Avançar
       </button>
-      <p v_if="errorMessage" class="error-message">{{ errorMessage }}</p>
+      <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+      </div>
+      <footer class="onboarding-footer">
+        <button @click="nextStep" :disabled="isNextButtonDisabled" class="next-button">
+          Avançar
+        </button>
+      </footer>
     </div>
   </div>
 </template>
 
 <script>
-import axios from 'axios'; // Será usado quando a chamada da API for implementada
+import axios from 'axios';
 
 export default {
   name: 'OnboardingIncome',
@@ -105,47 +115,68 @@ export default {
   text-align: center;
   width: 100%;
   max-width: 450px;
+  display: flex; /* Para organizar header, body, footer */
+  flex-direction: column; /* Empilha verticalmente */
 }
 
-h1 {
+.onboarding-header h1 {
   color: #333;
   margin-bottom: 16px;
+  font-size: 1.8em; /* Ajuste de tamanho se necessário */
 }
 
-p {
+.onboarding-body {
+  flex-grow: 1; /* O corpo ocupa o espaço restante */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Centraliza o conteúdo do corpo */
+}
+
+.support-text {
   color: #666;
-  margin-bottom: 24px;
+  margin-bottom: 30px; /* Mais espaço abaixo do texto de apoio */
   font-size: 0.95em;
+  padding: 0 15px; /* Evita que o texto toque as bordas em telas menores */
 }
 
-.input-group {
+.large-input-group {
   display: flex;
   align-items: center;
   margin-bottom: 24px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  padding: 0 10px;
+  padding: 10px 15px; /* Padding maior para input maior */
+  margin-left: auto;
+  margin-right: auto;
+  width: fit-content; /* Ajusta a largura ao conteúdo */
+  max-width: 80%; /* Evita que fique muito largo */
 }
 
-.input-group:focus-within {
+.large-input-group:focus-within {
   border-color: #007bff; /* Destaque ao focar */
   box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
 }
 
 .currency-symbol {
-  font-size: 1.2em;
+  font-size: 1.8em; /* Maior para acompanhar o input */
   color: #555;
-  margin-right: 8px;
+  margin-right: 10px;
 }
 
-input[type="number"] {
+.large-centered-input {
   flex-grow: 1;
-  padding: 12px 0; /* Ajuste o padding para alinhar com o símbolo */
+  padding: 12px 0;
   border: none;
-  font-size: 1.2em;
-  outline: none; /* Remove o outline padrão, já que o grupo tem focus */
-  width: calc(100% - 30px); /* Ajuste para não estourar o container */
+  font-size: 1.8em; /* Input maior */
+  outline: none;
+  text-align: left; /* Alinha o texto do placeholder e valor à esquerda */
+  min-width: 100px; /* Largura mínima */
 }
+
+.large-centered-input::placeholder {
+  color: #aaa;
+}
+
 
 /* Remove setas do input number no Chrome, Safari, Edge, Opera */
 input::-webkit-outer-spin-button,
@@ -158,13 +189,18 @@ input[type=number] {
   -moz-appearance: textfield;
 }
 
+.onboarding-footer {
+  padding-top: 20px; /* Espaço acima do botão */
+  width: 100%;
+}
+
 .next-button {
   background-color: #007bff;
   color: white;
-  padding: 12px 24px;
+  padding: 14px 24px; /* Botão um pouco maior */
   border: none;
   border-radius: 4px;
-  font-size: 1em;
+  font-size: 1.1em; /* Texto do botão um pouco maior */
   cursor: pointer;
   transition: background-color 0.3s ease;
   width: 100%;

@@ -1,131 +1,245 @@
 <template>
   <div class="dashboard-container" :style="{ backgroundColor: dynamicBackgroundColor }">
-    <div class="dashboard-content">
-      <!-- Conteúdo do Dashboard virá aqui, conforme Wireframe 3 -->
-      <!-- Por enquanto, apenas uma mensagem e a demonstração da cor de fundo -->
-      <h1>Dashboard Principal</h1>
-      <p>Saldo Disponível: R$ {{ availableBalance.toFixed(2) }}</p>
-      <p>Total de Receitas: R$ {{ totalIncome.toFixed(2) }}</p>
-      <p>Total de Despesas Fixas: R$ {{ totalFixedExpenses.toFixed(2) }}</p>
-      <p>Saúde Financeira ({{ healthPercentage.toFixed(2) }}%): {{ financialHealthStatus }}</p>
-
-      <!-- Simulação de atualização de dados para testar a cor -->
-      <div class="controls">
-        <label>
-          Simular Renda:
-          <input type="number" v-model.number="simulatedIncome" @input="updateFinancials" />
-        </label>
-        <label>
-          Simular Despesas Fixas:
-          <input type="number" v-model.number="simulatedFixedExpenses" @input="updateFinancials" />
-        </label>
+    <div class="dashboard-main-content">
+      <div class="saldo-disponivel-label">Saldo Disponível</div>
+      <div class="valor-principal">
+        R$ {{ formatCurrency(currentBalance) }}
       </div>
+
+      <div v-if="isLoading" class="loading-spinner">
+        <!-- Adicionar um spinner/loading visual aqui -->
+        Carregando...
+      </div>
+
+      <div v-if="errorMessage" class="error-message-dashboard">
+        {{ errorMessage }}
+      </div>
+
+      <div v-if="!isLoading && !errorMessage && projection" class="projection-area">
+        <div class="projection-card">
+          <span class="projection-icon">📊</span> <!-- Ícone de gráfico/alerta -->
+          <p v-if="projection.yellowAlertDay && financialHealthStatus === 'amarelo'">
+            Seu ritmo de gastos atual indica que você ficará no amarelo por volta do dia {{ formatAlertDay(projection.yellowAlertDay) }}.
+          </p>
+          <p v-else-if="projection.redAlertDay && financialHealthStatus === 'vermelho'">
+            Atenção! Seu ritmo de gastos atual indica que você poderá ficar no vermelho por volta do dia {{ formatAlertDay(projection.redAlertDay) }}.
+          </p>
+           <p v-else-if="projection.endOfMonthBalance !== undefined">
+            Projeção no fim do mês: R$ {{ formatCurrency(projection.endOfMonthBalance) }}.
+          </p>
+        </div>
+      </div>
+       <!-- Área de Projeção (Vazia/Oculta) - Se não houver projeção, este bloco não renderiza -->
+
+
+      <!-- Simulação de atualização de dados para testar a cor (REMOVER EM PRODUÇÃO) -->
+      <!--
+      <div class="controls" style="background: rgba(0,0,0,0.3); padding: 10px; margin-top: 20px; border-radius: 5px; color: white;">
+        <p>Controles de Simulação (DEV)</p>
+        <label> Simular Renda: <input type="number" v-model.number="simulatedIncome" @input="updateFinancialsFromSimulation" /> </label>
+        <label> Simular Despesas Fixas: <input type="number" v-model.number="simulatedFixedExpenses" @input="updateFinancialsFromSimulation" /> </label>
+        <label> Simular Despesas Variáveis: <input type="number" v-model.number="simulatedVariableExpenses" @input="updateFinancialsFromSimulation" /> </label>
+         <small>Dias no Mês (Proj): {{ daysInMonthForProjection }} / Dia Atual (Proj): {{ dayOfMonthForProjection }}</small>
+      </div>
+      -->
     </div>
+
+    <div v-if="!isLoading && !errorMessage && (financialHealthStatus === 'amarelo' || financialHealthStatus === 'vermelho')" class="mensagem-apoio">
+      <p v-if="financialHealthStatus === 'amarelo'">
+        Ainda está tudo sob controle, mas vamos ficar de olho nas próximas despesas.
+      </p>
+      <p v-if="financialHealthStatus === 'vermelho'">
+        O sinal está vermelho. Que tal rever os gastos ou buscar novas fontes de renda?
+      </p>
+    </div>
+
+    <button class="fab" @click="openAddExpenseModal" title="Adicionar Despesa">+</button>
+
+    <AddExpenseModal
+      v-if="showAddExpenseModal"
+      @close="closeAddExpenseModal"
+      @save-expense="handleSaveExpense"
+    />
   </div>
 </template>
 
 <script>
-// import axios from 'axios'; // Para buscar dados reais no futuro
+import axios from 'axios';
+import AddExpenseModal from '@/components/AddExpenseModal.vue';
 
 export default {
-  name: 'DashboardView', // Renomeado para evitar conflito com 'Dashboard' se houver componente com esse nome
+  name: 'DashboardView',
+  components: {
+    AddExpenseModal, // Registra o componente modal
+  },
   data() {
     return {
-      totalIncome: 5000, // Valor de exemplo, virá da API
-      totalFixedExpenses: 2000, // Valor de exemplo, virá da API
-      // Para simulação e teste da cor de fundo:
-      simulatedIncome: 5000,
-      simulatedFixedExpenses: 2000,
-      // financialData: null, // Para armazenar dados buscados da API
-      // isLoading: true,
-      // errorMessage: '',
+      currentBalance: 0,
+      totalIncome: 0,
+      projection: null,
+      financialHealthStatus: 'verde',
+      healthPercentage: 100,
+
+      isLoading: true,
+      errorMessage: '',
+      showAddExpenseModal: false, // Controla a visibilidade do modal
     };
   },
   computed: {
-    availableBalance() {
-      // No futuro, isso pode incluir outras despesas variáveis, etc.
-      // Por agora, é a diferença entre renda e despesas fixas.
-      return this.totalIncome - this.totalFixedExpenses;
-    },
-    netFlow() {
-      // Receitas - Despesas Fixas
-      return this.totalIncome - this.totalFixedExpenses;
-    },
-    healthPercentage() {
-      if (this.totalIncome <= 0) {
-        return 0; // Evita divisão por zero e considera 0% se não há renda
-      }
-      // Percentual do (Receita - Despesas Fixas) em relação à Receita Total
-      // Se Despesas > Receitas, o netFlow é negativo, o que resultará em < 0%
-      const percentage = (this.netFlow / this.totalIncome) * 100;
-      return Math.max(percentage, 0); // Garante que não seja negativo, mínimo 0% para a lógica de cor
-                                     // Se quiser mostrar percentuais negativos, ajuste aqui e na lógica de cor.
-                                     // Para a lógica de cores pedida (Ex: <25% = vermelho), um netFlow negativo já cairia aí.
-    },
+    // availableBalance, netFlow, healthPercentage são agora diretamente do backend
+    // ou calculados com base nos dados do backend.
+    // A cor de fundo é determinada pelo healthPercentage vindo do backend.
     dynamicBackgroundColor() {
+      // Usa o healthPercentage recebido do backend
       const percentage = this.healthPercentage;
       if (percentage > 60) {
-        return '#4CAF50'; // Verde
+        return '#28a745'; // Verde (Bootstrap success green)
       } else if (percentage >= 25 && percentage <= 60) {
-        return '#FFC107'; // Amarelo/Laranja
+        return '#ffc107'; // Amarelo (Bootstrap warning yellow)
       } else {
-        return '#F44336'; // Vermelho
+        return '#dc3545'; // Vermelho (Bootstrap danger red)
       }
     },
-    financialHealthStatus() {
-      const percentage = this.healthPercentage;
-      if (percentage > 60) {
-        return 'Saudável';
-      } else if (percentage >= 25 && percentage <= 60) {
-        return 'Atenção';
-      } else {
-        return 'Crítico';
-      }
-    }
   },
   methods: {
-    updateFinancials() {
-      // Atualiza os valores principais com base na simulação
-      this.totalIncome = this.simulatedIncome;
-      this.totalFixedExpenses = this.simulatedFixedExpenses;
+    openAddExpenseModal() {
+      this.showAddExpenseModal = true;
     },
-    // async fetchFinancialData() {
-    //   this.isLoading = true;
-    //   this.errorMessage = '';
-    //   const token = localStorage.getItem('authToken');
-    //   if (!token) {
-    //     this.errorMessage = 'Autenticação necessária.';
-    //     this.isLoading = false;
-    //     this.$router.push('/'); // Ou login
-    //     return;
+    closeAddExpenseModal() {
+      this.showAddExpenseModal = false;
+    },
+    async handleSaveExpense(expenseData) {
+      // Lógica para chamar a API POST /expenses
+      // Esta é a implementação da próxima etapa do plano (lógica de POST /expenses)
+      // Por enquanto, apenas logamos e atualizamos o dashboard para simular
+      console.log('Despesa a ser salva:', expenseData);
+      this.showAddExpenseModal = false; // Fecha o modal
+
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        this.errorMessage = 'Sessão expirada. Faça login novamente.';
+        this.$router.push('/');
+        return;
+      }
+
+      try {
+        // Adiciona um pequeno delay para simular a chamada de API e ver o loading
+        this.isLoading = true;
+        // await new Promise(resolve => setTimeout(resolve, 500)); // Simula delay
+
+        const response = await axios.post('/api/expenses', expenseData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.status === 201) {
+          console.log('Despesa salva com sucesso, atualizando dashboard...');
+          this.fetchDashboardData(); // Recarrega os dados do dashboard
+        } else {
+           this.errorMessage = response.data.message || 'Erro ao salvar despesa.';
+           this.isLoading = false;
+        }
+      } catch (error) {
+        console.error('Erro ao salvar despesa:', error);
+        if (error.response && error.response.data && error.response.data.error) {
+          this.errorMessage = error.response.data.error;
+        } else {
+          this.errorMessage = 'Não foi possível salvar a despesa.';
+        }
+        this.isLoading = false; // Garante que o loading pare em caso de erro
+      }
+      // this.fetchDashboardData(); // Atualiza os dados do dashboard após salvar
+    },
+    formatCurrency(value) {
+      if (typeof value !== 'number') {
+        return '0,00';
+      }
+      return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+    formatAlertDay(dateString) {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString + 'T00:00:00');
+        return `dia ${date.getDate()}`;
+      } catch (e) {
+        return dateString;
+      }
+    },
+    async fetchDashboardData() {
+      this.isLoading = true; // Movido para cá para garantir que é setado antes da chamada
+      this.errorMessage = '';
+      const token = localStorage.getItem('authToken');
+
+      if (!token) {
+        this.errorMessage = 'Sessão expirada ou inválida. Por favor, faça login novamente.';
+        this.isLoading = false;
+        this.$router.push('/'); // Redireciona para login
+        return;
+      }
+
+      try {
+        const response = await axios.get('/api/balance', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = response.data;
+        this.currentBalance = data.currentBalance;
+        this.totalIncome = data.totalIncome;
+        this.projection = data.projection; // Pode ser null
+        this.financialHealthStatus = data.financialHealthStatus;
+        this.healthPercentage = data.healthPercentage;
+
+        // Para debug (opcional)
+        // this.daysInMonthForProjection = data.daysInMonthForProjection;
+        // this.dayOfMonthForProjection = data.dayOfMonthForProjection;
+
+      } catch (error) {
+        console.error('Erro ao buscar dados do dashboard:', error);
+        if (error.response) {
+          if (error.response.status === 401) {
+            this.errorMessage = 'Sessão expirada. Por favor, faça login novamente.';
+            localStorage.removeItem('authToken'); // Limpa token inválido
+            this.$router.push('/');
+          } else if (error.response.data && error.response.data.error) {
+            this.errorMessage = error.response.data.error;
+          } else {
+            this.errorMessage = 'Falha ao carregar dados do dashboard. Tente novamente mais tarde.';
+          }
+        } else {
+          this.errorMessage = 'Não foi possível conectar ao servidor.';
+        }
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    // updateFinancialsFromSimulation() { // Função de simulação
+    //   this.totalIncome = this.simulatedIncome;
+    //   // Recalcular com base nos dados simulados para teste de cor
+    //   const netFlowSim = this.simulatedIncome - this.simulatedFixedExpenses - this.simulatedVariableExpenses;
+    //   this.currentBalance = netFlowSim; // Simplificado para teste
+
+    //   if (this.simulatedIncome > 0) {
+    //     this.healthPercentage = (netFlowSim / this.simulatedIncome) * 100;
+    //   } else {
+    //     this.healthPercentage = 0;
     //   }
-    //   try {
-    //     // Exemplo: buscar renda e despesas. Você precisará de endpoints para isso.
-    //     // const incomeResponse = await axios.get('/api/user/income', { headers: { Authorization: `Bearer ${token}` } });
-    //     // const expensesResponse = await axios.get('/api/user/fixed-expenses', { headers: { Authorization: `Bearer ${token}` } });
-    //     // this.totalIncome = incomeResponse.data.monthlyIncome || 0;
-    //     // this.totalFixedExpenses = expensesResponse.data.reduce((sum, exp) => sum + exp.value, 0) || 0;
-    //     // this.simulatedIncome = this.totalIncome; // Atualiza simulação
-    //     // this.simulatedFixedExpenses = this.totalFixedExpenses; // Atualiza simulação
-    //
-    //     // Por enquanto, usamos dados de exemplo:
-    //     this.simulatedIncome = this.totalIncome;
-    //     this.simulatedFixedExpenses = this.totalFixedExpenses;
-    //
-    //   } catch (error) {
-    //     console.error('Erro ao buscar dados financeiros:', error);
-    //     this.errorMessage = 'Falha ao carregar dados do dashboard.';
-    //     if (error.response && error.response.status === 401) {
-    //       this.$router.push('/'); // Token inválido/expirado
-    //     }
-    //   } finally {
-    //     this.isLoading = false;
+
+    //   if (this.healthPercentage > 60) this.financialHealthStatus = 'verde';
+    //   else if (this.healthPercentage >= 25) this.financialHealthStatus = 'amarelo';
+    //   else this.financialHealthStatus = 'vermelho';
+
+    //   // Simular projeção para teste visual
+    //   if(this.financialHealthStatus === 'amarelo'){
+    //     this.projection = { yellowAlertDay: '2023-12-25' }; // Data de exemplo
+    //   } else if (this.financialHealthStatus === 'vermelho') {
+    //     this.projection = { redAlertDay: '2023-12-20' }; // Data de exemplo
+    //   } else {
+    //     this.projection = null;
     //   }
     // }
   },
   created() {
-    // this.fetchFinancialData(); // Chamaria para buscar dados reais
-    this.updateFinancials(); // Inicializa com os valores de simulação (que são os de exemplo)
+    this.fetchDashboardData();
+    // this.updateFinancialsFromSimulation(); // Para teste inicial da UI com simulação
   },
 };
 </script>
@@ -135,56 +249,123 @@ export default {
   min-height: 100vh;
   width: 100%;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-direction: column; /* Garante que o conteúdo principal e a mensagem de apoio fiquem empilhados */
+  justify-content: space-between; /* Empurra a mensagem de apoio para baixo se houver espaço */
   align-items: center;
   text-align: center;
-  color: white; /* Cor do texto padrão para bom contraste com fundos coloridos */
+  color: white;
   padding: 20px;
   box-sizing: border-box;
-  transition: background-color 0.8s ease-in-out; /* Transição suave da cor de fundo */
+  transition: background-color 0.8s ease-in-out;
+  position: relative;
 }
 
-.dashboard-content {
-  background-color: rgba(0, 0, 0, 0.2); /* Um overlay semi-transparente para legibilidade */
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
-
-h1 {
-  font-size: 2.5em;
-  margin-bottom: 20px;
-}
-
-p {
-  font-size: 1.2em;
-  margin-bottom: 10px;
-}
-
-.controls {
-  margin-top: 30px;
-  padding: 20px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+.dashboard-main-content {
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
-  gap: 15px;
-}
-
-.controls label {
-  display: flex;
-  justify-content: space-between;
+  justify-content: center; /* Centraliza o conteúdo principal verticalmente */
   align-items: center;
-  font-size: 1em;
+  width: 100%;
 }
 
-.controls input[type="number"] {
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  margin-left: 10px;
-  width: 100px; /* Largura para os inputs de simulação */
-  color: #333; /* Cor do texto dentro do input */
+
+.saldo-disponivel-label {
+  font-size: 1.2em; /* Texto pequeno no topo */
+  font-weight: 300;
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.8);
 }
+
+.valor-principal {
+  font-size: 5rem; /* Valor Gigante */
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 20px; /* Espaço antes da área de projeção */
+  word-break: break-all; /* Quebra o valor se for muito grande para a tela */
+}
+
+@media (max-width: 600px) {
+  .valor-principal {
+    font-size: 3.5rem; /* Reduz um pouco em telas menores */
+  }
+  .saldo-disponivel-label {
+    font-size: 1em;
+  }
+}
+
+
+.projection-area {
+  margin-top: 10px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 450px; /* Limita a largura da área de projeção */
+}
+
+.projection-card {
+  background-color: rgba(0, 0, 0, 0.25); /* Fundo semi-transparente */
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  font-size: 0.95em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.projection-icon {
+  font-size: 1.5em;
+}
+
+.mensagem-apoio {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 10px 20px;
+  width: 100%;
+  text-align: center;
+  /* position: absolute; */ /* Se quisesse fixar no rodapé absoluto */
+  /* bottom: 20px; */
+  margin-top: auto; /* Empurra para baixo se o .dashboard-main-content não preencher tudo */
+}
+
+.loading-spinner, .error-message-dashboard {
+  margin-top: 20px;
+  font-size: 1.1em;
+}
+
+.error-message-dashboard {
+  color: #f8d7da; /* Cor de erro Bootstrap */
+  background-color: #721c24; /* Fundo para erro Bootstrap */
+  padding: 10px;
+  border-radius: 5px;
+}
+
+/* FAB (Botão de Ação Flutuante) */
+.fab {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  background-color: #007bff; /* Azul primário */
+  color: white;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  font-size: 28px; /* Tamanho do ícone '+' */
+  line-height: 60px; /* Centraliza o '+' verticalmente */
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  z-index: 999; /* Para ficar sobre outros elementos se houver */
+}
+.fab:hover {
+  background-color: #0056b3; /* Azul mais escuro no hover */
+  transform: translateY(-2px); /* Leve elevação no hover */
+}
+.fab:active {
+  transform: translateY(0px); /* Volta ao normal ao clicar */
+}
+
 </style>

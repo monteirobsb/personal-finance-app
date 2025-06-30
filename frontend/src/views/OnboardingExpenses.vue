@@ -1,40 +1,46 @@
 <template>
   <div class="onboarding-expenses-container">
     <div class="onboarding-card">
-      <h1>Quais são suas despesas fixas mensais?</h1>
-      <p>Liste suas despesas recorrentes, como aluguel, assinaturas, etc.</p>
+      <header class="onboarding-header">
+        <h1>Quais são suas despesas fixas?</h1>
+      </header>
+      <div class="onboarding-body">
+        <p class="support-text">Inclua contas que não mudam de valor, como aluguel, internet e assinaturas.</p>
 
-      <div v-for="(expense, index) in expenses" :key="index" class="expense-item">
-        <input
-          type="text"
-          v-model="expense.name"
-          placeholder="Nome da Despesa (ex: Aluguel)"
-          class="expense-name-input"
-        />
-        <div class="input-group value-input-group">
-          <span class="currency-symbol">R$</span>
+        <div v-for="(expense, index) in expenses" :key="index" class="expense-item">
           <input
-            type="number"
-            v-model.number="expense.value"
-            placeholder="Valor"
-            min="0.01"
-            step="0.01"
-            class="expense-value-input"
+            type="text"
+            v-model="expense.name"
+            placeholder="Nome da despesa (ex: Aluguel)"
+            class="expense-name-input"
           />
+          <div class="input-group value-input-group">
+            <span class="currency-symbol">R$</span>
+            <input
+              type="number"
+              v-model.number="expense.value"
+              placeholder="0,00"
+              min="0.01"
+              step="0.01"
+              class="expense-value-input"
+            />
+          </div>
+          <button @click="removeExpense(index)" class="remove-expense-button" v-if="expenses.length > 0 && index !== 0">
+            &times; <!-- Só mostra o botão de remover se não for o primeiro item ou se houver mais de um -->
+          </button>
+           <div v-else class="remove-placeholder"></div> <!-- Placeholder para alinhar -->
         </div>
-        <button @click="removeExpense(index)" class="remove-expense-button" v_if="expenses.length > 1">
-          &times;
+
+        <button @click="addExpense" class="add-expense-button">
+          + Adicionar outra despesa
         </button>
       </div>
-
-      <button @click="addExpense" class="add-expense-button">
-        + Adicionar Despesa
-      </button>
-
-      <button @click="finishOnboarding" :disabled="isFinishButtonDisabled" class="finish-button">
-        Concluir
-      </button>
-      <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+      <footer class="onboarding-footer">
+        <button @click="finishOnboarding" :disabled="isFinishButtonDisabled" class="finish-button">
+          Concluir
+        </button>
+      </footer>
+      <p v-if="errorMessage" class="error-message-footer">{{ errorMessage }}</p>
     </div>
   </div>
 </template>
@@ -54,10 +60,21 @@ export default {
   },
   computed: {
     isFinishButtonDisabled() {
-      // Desabilita se alguma despesa não tiver nome ou valor, ou se o valor não for positivo
-      return this.expenses.some(
-        (exp) => !exp.name || !exp.value || exp.value <= 0
+      // Botão Concluir habilitado após a inserção de pelo menos uma despesa válida.
+      // Uma despesa é válida se tiver nome e valor > 0.
+      // Se a lista estiver vazia OU se todos os itens forem inválidos, o botão fica desabilitado.
+      if (this.expenses.length === 0) return true; // Se não há despesas, desabilita.
+
+      // Verifica se PELO MENOS UMA despesa é válida. Se sim, o botão habilita.
+      // O wireframe diz "habilitado após a inserção de PELO MENOS UMA despesa"
+      // Isso implica que se houver uma válida, mesmo que outras estejam em branco, ele habilita.
+      // No entanto, para submissão, provavelmente queremos que TODAS as despesas preenchidas sejam válidas.
+      // A lógica atual no `finishOnboarding` já verifica isso antes de submeter.
+      // Para o estado do botão, vamos seguir o "pelo menos uma válida".
+      const atLeastOneValid = this.expenses.some(
+        (exp) => exp.name && exp.value && exp.value > 0
       );
+      return !atLeastOneValid; // Habilita se atLeastOneValid for true.
     },
   },
   methods: {
@@ -65,11 +82,39 @@ export default {
       this.expenses.push({ name: '', value: null });
     },
     removeExpense(index) {
-      if (this.expenses.length > 1) { // Garante que sempre haja pelo menos um item
+      // Permite remover qualquer item, mas o `isFinishButtonDisabled` vai reavaliar.
+      // Se o último item válido for removido, o botão Concluir será desabilitado.
+      if (this.expenses.length > 0) { // Só remove se houver itens
         this.expenses.splice(index, 1);
+        if (this.expenses.length === 0) { // Se todas foram removidas, adiciona uma em branco
+            this.addExpense();
+        }
       }
     },
     async finishOnboarding() {
+      // Antes de submeter, garante que TODAS as despesas que têm algum campo preenchido
+      // sejam completamente válidas (nome e valor positivo).
+      // Despesas totalmente em branco podem ser ignoradas ou filtradas.
+      const validExpensesToSubmit = this.expenses.filter(
+        exp => exp.name && exp.value && exp.value > 0
+      );
+
+      if (validExpensesToSubmit.length === 0 && this.expenses.some(exp => exp.name || exp.value)) {
+        this.errorMessage = 'Por favor, preencha pelo menos uma despesa completamente (nome e valor positivo) ou remova as despesas incompletas.';
+        return;
+      }
+      // Se todas as despesas estiverem em branco (ex: usuário apagou tudo e deixou um item em branco)
+      // e o botão estiver habilitado por alguma lógica anterior, mas não há nada para enviar.
+      // Embora a lógica do `isFinishButtonDisabled` deva cobrir isso.
+      if (validExpensesToSubmit.length === 0 && this.expenses.length > 0 && !this.expenses.some(exp => exp.name || exp.value)) {
+         // Nenhuma despesa válida e nenhuma parcialmente preenchida, pode ser um array de {name:'', value:null}
+         // O usuário pode querer avançar sem despesas fixas. O backend deve aceitar lista vazia.
+         // Se for obrigatório ter despesas, a lógica do botão e aqui precisa mudar.
+         // Assumindo que é opcional enviar despesas:
+         console.log("Nenhuma despesa fixa para enviar.");
+      }
+
+
       if (this.isFinishButtonDisabled) {
         this.errorMessage = 'Por favor, preencha todas as despesas corretamente (nome e valor positivo).';
         return;
@@ -83,9 +128,9 @@ export default {
         return;
       }
 
+      // Usa as despesas filtradas para o payload
       const payload = {
-        // O backend espera um array de objetos com "nome" e "valor"
-        despesasFixas: this.expenses.map(exp => ({ nome: exp.name, valor: exp.value })),
+        despesasFixas: validExpensesToSubmit.map(exp => ({ nome: exp.name, valor: exp.value })),
       };
 
       try {
@@ -126,20 +171,28 @@ export default {
 
 .onboarding-card {
   background-color: white;
-  padding: 40px;
+  padding: 30px 40px; /* Ajuste no padding */
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   text-align: center;
   width: 100%;
-  max-width: 600px; /* Um pouco mais largo para acomodar os campos lado a lado */
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
 }
 
-h1 {
+.onboarding-header h1 {
   color: #333;
   margin-bottom: 16px;
+  font-size: 1.8em;
 }
 
-p {
+.onboarding-body {
+  flex-grow: 1;
+  width: 100%;
+}
+
+.support-text {
   color: #666;
   margin-bottom: 24px;
   font-size: 0.95em;
@@ -149,11 +202,11 @@ p {
   display: flex;
   align-items: center;
   margin-bottom: 16px;
-  gap: 10px; /* Espaço entre os elementos do item */
+  gap: 10px;
 }
 
 .expense-name-input {
-  flex-grow: 1; /* Ocupa mais espaço */
+  flex-grow: 1;
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -172,7 +225,6 @@ p {
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 0 10px;
-  /* flex-basis: 150px; */ /* Define uma base de largura para o valor */
 }
 
 .value-input-group:focus-within {
@@ -181,7 +233,7 @@ p {
 }
 
 .currency-symbol {
-  font-size: 1em; /* Ajustado para ser similar ao input */
+  font-size: 1em;
   color: #555;
   margin-right: 5px;
 }
@@ -191,8 +243,13 @@ p {
   border: none;
   font-size: 1em;
   outline: none;
-  width: 80px; /* Largura fixa para o valor */
+  width: 90px; /* Ajuste de largura para o valor */
+  text-align: right;
 }
+.expense-value-input::placeholder {
+  text-align: left; /* Placeholder à esquerda */
+}
+
 
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
@@ -208,46 +265,54 @@ input[type=number] {
   color: white;
   border: none;
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 1.2em;
-  line-height: 30px; /* Centraliza o X */
+  width: 28px; /* Levemente menor */
+  height: 28px;
+  font-size: 1.1em;
+  line-height: 28px;
   text-align: center;
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
+.remove-placeholder {
+  width: 28px; /* Mesmo tamanho do botão para manter alinhamento */
+  height: 28px;
+}
+
 
 .remove-expense-button:hover {
   background-color: #d9363e;
 }
 
 .add-expense-button {
-  background-color: #28a745; /* Verde para adicionar */
-  color: white;
+  background-color: transparent;
+  color: #007bff;
   padding: 10px 15px;
-  border: none;
+  border: 1px dashed #007bff;
   border-radius: 4px;
   font-size: 0.9em;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-  margin-top: 10px; /* Espaço acima */
-  margin-bottom: 20px; /* Espaço abaixo antes do botão de concluir */
-  display: block; /* Faz ocupar a largura disponível se não houver outros botões na linha */
-  margin-left: auto;
-  margin-right: auto;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  display: inline-block; /* Para não ocupar largura total */
 }
 
 .add-expense-button:hover {
-  background-color: #1e7e34;
+  background-color: #e7f3ff; /* Um azul bem claro */
+}
+
+.onboarding-footer {
+  padding-top: 20px;
+  width: 100%;
 }
 
 .finish-button {
   background-color: #007bff;
   color: white;
-  padding: 12px 24px;
+  padding: 14px 24px; /* Botão um pouco maior */
   border: none;
   border-radius: 4px;
-  font-size: 1em;
+  font-size: 1.1em; /* Texto do botão um pouco maior */
   cursor: pointer;
   transition: background-color 0.3s ease;
   width: 100%;
@@ -262,9 +327,10 @@ input[type=number] {
   cursor: not-allowed;
 }
 
-.error-message {
+.error-message-footer { /* Renomeado para evitar conflito se houver .error-message no body */
   color: red;
-  margin-top: 16px;
+  margin-top: 10px; /* Menor margem, pois está abaixo do footer */
   font-size: 0.9em;
+  min-height: 1.2em; /* Para evitar pulo de layout */
 }
 </style>
